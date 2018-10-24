@@ -1,28 +1,28 @@
 #!/usr/bin/python3
 
-
 from flask import Flask, render_template
 from time import sleep
 import threading
 import json
 import RPi.GPIO as GPIO
 
-try:
-    values = {"new": 7.5, "cur": 7.5}
+values = {"new": 7.5, "cur": 7.5, "busy": False}
 
-    LEDS = {"UP": 16, "DOWN": 40}
-    GPIO.setwarnings(False)    # Ignore warning for now
-    GPIO.setmode(GPIO.BOARD)   # Use physical pin numbering
-    GPIO.setup(LEDS["UP"], GPIO.OUT, initial=GPIO.LOW)
-    GPIO.setup(LEDS["DOWN"], GPIO.OUT, initial=GPIO.LOW)
+Relays = {"UP": 16, "DOWN": 40}
+GPIO.setwarnings(False)    # Ignore warning for now
+GPIO.setmode(GPIO.BOARD)   # Use physical pin numbering
+GPIO.setup(Relays["UP"], GPIO.OUT, initial=GPIO.LOW)
+GPIO.setup(Relays["DOWN"], GPIO.OUT, initial=GPIO.LOW)
 
-    app = Flask(__name__)
+app = Flask(__name__)
 
-    def triggerRelay(e, thread):
+def triggerRelay(e, thread):
+    if not values["busy"]:
+        values["busy"] = True
         tn = threading.currentThread().getName()
 
-        GPIO.output(LEDS[tn], GPIO.HIGH)
-        print('LED ON \n')
+        GPIO.output(Relays[tn], GPIO.HIGH)
+        print('Relay ON \n')
 
         print(values["new"])
 
@@ -39,47 +39,49 @@ try:
             print(round(values["cur"], 1))
             sleep(0.1)
 
-        GPIO.output(LEDS[tn], GPIO.LOW)
-        print('LED OFF \n')
+        GPIO.output(Relays[tn], GPIO.LOW)
+        print('Relay OFF \n')
+        values["busy"] = False
+    else:
+        print('Desk is already busy moving!')
 
-    @app.route('/')
-    def index():
-        return render_template('index.html', val=str(round(values["cur"], 1)))
+@app.route('/')
+def index():
+    return render_template('index.html', val=str(round(values["cur"], 1)))
 
-    @app.route("/<action>")
-    def action(action):
-        if action == 'UP' or action == 'up':
-            e = threading.Event()
-            thread = threading.Thread(name='UP', target=triggerRelay, args=(e, 2))
-            thread.start()
-            return "Desk is going UP"
+@app.route("/<action>")
+def action(action):
+    if str(action).upper() == 'UP':
+        e = threading.Event()
+        thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
+        thread.start()
+        return "Desk is going UP"
 
-        if action == 'DOWN' or action == 'down':
-            e = threading.Event()
-            thread = threading.Thread(name='DOWN', target=triggerRelay, args=(e, 2))
-            thread.start()
-            return "Desk is going DOWN"
+    if str(action).upper() == 'DOWN' :
+        e = threading.Event()
+        thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
+        thread.start()
+        return "Desk is going DOWN"
 
-    @app.route("/<action>/<time>")
-    def actionTime(action, time):
-        values["new"] = float(time)
+    return "Desk is NOT moving"
 
-        if action == 'UP' or action == 'up':
-            print(time)
-            e = threading.Event()
-            thread = threading.Thread(name='UP', target=triggerRelay, args=(e, 2))
-            thread.start()
-            return "Desk is going UP"
+@app.route("/<action>/<time>")
+def actionTime(action, time):
+    values["new"] = float(time)
 
-        if action == 'DOWN' or action == 'down':
-            e = threading.Event()
-            thread = threading.Thread(name='DOWN', target=triggerRelay, args=(e, 2))
-            thread.start()
-            return "Desk is going DOWN"
+    if str(action).upper() == 'UP':
+        print(time)
+        e = threading.Event()
+        thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
+        thread.start()
+        return "Desk is going UP"
 
-    if __name__ == "__main__":
-        app.run(debug=True, host='0.0.0.0', port=80)
-
-except:
-    GPIO.output(LEDS["DOWN"], GPIO.LOW)
-    GPIO.output(LEDS["UP"], GPIO.LOW)
+    if str(action).upper() == 'DOWN':
+        e = threading.Event()
+        thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
+        thread.start()
+        return "Desk is going DOWN"
+        
+    return "Desk is NOT moving"
+if __name__ == "__main__":
+    app.run(debug=False, host='0.0.0.0', port=80)
