@@ -75,8 +75,6 @@ try:
             thread = threading.Thread(name='DOWN', target=triggerRelay, args=(e, 2))
             thread.start()
 
-        return "LED OFF \n"
-
     if __name__ == "__main__":
         app.run(debug=True, host='0.0.0.0', port=80)
 
