@@ -52,13 +52,13 @@ try:
             e = threading.Event()
             thread = threading.Thread(name='UP', target=triggerRelay, args=(e, 2))
             thread.start()
+            return "Desk is going UP"
 
         if action == 'DOWN':
             e = threading.Event()
             thread = threading.Thread(name='DOWN', target=triggerRelay, args=(e, 2))
             thread.start()
-
-        return "LED OFF \n"
+            return "Desk is going DOWN"
 
     @app.route("/<action>/<time>")
     def actionTime(action, time):
@@ -69,11 +69,13 @@ try:
             e = threading.Event()
             thread = threading.Thread(name='UP', target=triggerRelay, args=(e, 2))
             thread.start()
+            return "Desk is going UP"
 
         if action == 'DOWN':
             e = threading.Event()
             thread = threading.Thread(name='DOWN', target=triggerRelay, args=(e, 2))
             thread.start()
+            return "Desk is going DOWN"
 
     if __name__ == "__main__":
         app.run(debug=True, host='0.0.0.0', port=80)
