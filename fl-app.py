@@ -48,13 +48,13 @@ try:
 
     @app.route("/<action>")
     def action(action):
-        if action == 'UP':
+        if action == 'UP' or action == 'up':
             e = threading.Event()
             thread = threading.Thread(name='UP', target=triggerRelay, args=(e, 2))
             thread.start()
             return "Desk is going UP"
 
-        if action == 'DOWN':
+        if action == 'DOWN' or action == 'down':
             e = threading.Event()
             thread = threading.Thread(name='DOWN', target=triggerRelay, args=(e, 2))
             thread.start()
@@ -64,14 +64,14 @@ try:
     def actionTime(action, time):
         values["new"] = float(time)
 
-        if action == 'UP':
+        if action == 'UP' or action == 'up':
             print(time)
             e = threading.Event()
             thread = threading.Thread(name='UP', target=triggerRelay, args=(e, 2))
             thread.start()
             return "Desk is going UP"
 
-        if action == 'DOWN':
+        if action == 'DOWN' or action == 'down':
             e = threading.Event()
             thread = threading.Thread(name='DOWN', target=triggerRelay, args=(e, 2))
             thread.start()
