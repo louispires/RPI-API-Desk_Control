@@ -6,9 +6,9 @@ import threading
 import json
 import RPi.GPIO as GPIO
 
-values = {"new": 7.5, "cur": 7.5, "busy": False}
+values = {"new": 10, "cur": 10, "up": 11, "down": 9.5, "busy": False}
 
-Relays = {"UP": 16, "DOWN": 40}
+Relays = {"UP": 18, "DOWN": 16}
 GPIO.setwarnings(False)    # Ignore warning for now
 GPIO.setmode(GPIO.BOARD)   # Use physical pin numbering
 GPIO.setup(Relays["UP"], GPIO.OUT, initial=GPIO.LOW)
@@ -16,72 +16,80 @@ GPIO.setup(Relays["DOWN"], GPIO.OUT, initial=GPIO.LOW)
 
 app = Flask(__name__)
 
-def triggerRelay(e, thread):
-    if not values["busy"]:
-        values["busy"] = True
-        tn = threading.currentThread().getName()
+try:
 
-        GPIO.output(Relays[tn], GPIO.HIGH)
-        print('Relay ON \n')
+    def triggerRelay(e, thread):
+        if not values["busy"]:
+            values["busy"] = True
+            tn = threading.currentThread().getName()
 
-        print(values["new"])
+            GPIO.output(Relays[tn], GPIO.HIGH)
+            print('Relay ON \n')
 
-        tt = int(values["new"] * 10)
+            print(values["new"])
 
-        print(range(tt))
-        
-        for t in range(tt):
-            print(t)
-            if tn == 'UP':
-                values["cur"] = values["cur"] + (0.1)
-            if tn == 'DOWN':
-                values["cur"] = values["cur"] - (0.1)
-            print(round(values["cur"], 1))
-            sleep(0.1)
+            tt = int(values["new"] * 10)
 
-        GPIO.output(Relays[tn], GPIO.LOW)
-        print('Relay OFF \n')
-        values["busy"] = False
-    else:
-        print('Desk is already busy moving!')
+            print(range(tt))
+            
+            for t in range(tt):
+                print(t)
+                if tn == 'UP':
+                    values["cur"] = values["cur"] + (0.1)
+                if tn == 'DOWN':
+                    values["cur"] = values["cur"] - (0.1)
+                print(round(values["cur"], 1))
+                sleep(0.1)
 
-@app.route('/')
-def index():
-    return render_template('index.html', val=str(round(values["cur"], 1)))
+            GPIO.output(Relays[tn], GPIO.LOW)
+            print('Relay OFF \n')
+            values["busy"] = False
+        else:
+            print('Desk is already busy moving!')
 
-@app.route("/<action>")
-def action(action):
-    if str(action).upper() == 'UP':
-        e = threading.Event()
-        thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
-        thread.start()
-        return "Desk is going UP"
+    @app.route('/')
+    def index():
+        return render_template('index.html', val=str(round(values["cur"], 1)))
 
-    if str(action).upper() == 'DOWN' :
-        e = threading.Event()
-        thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
-        thread.start()
-        return "Desk is going DOWN"
+    @app.route("/<action>")
+    def action(action):
+        if str(action).upper() == 'UP':
+            values["new"] = values["up"]
+            e = threading.Event()
+            thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
+            thread.start()
+            return "Desk is going UP"
 
-    return "Desk is NOT moving"
+        if str(action).upper() == 'DOWN' :
+            values["new"] = values["down"]
+            e = threading.Event()
+            thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
+            thread.start()
+            return "Desk is going DOWN"
 
-@app.route("/<action>/<time>")
-def actionTime(action, time):
-    values["new"] = float(time)
+        return "Desk is NOT moving"
 
-    if str(action).upper() == 'UP':
-        print(time)
-        e = threading.Event()
-        thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
-        thread.start()
-        return "Desk is going UP"
+    @app.route("/<action>/<time>")
+    def actionTime(action, time):
+        values["new"] = float(time)
 
-    if str(action).upper() == 'DOWN':
-        e = threading.Event()
-        thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
-        thread.start()
-        return "Desk is going DOWN"
-        
-    return "Desk is NOT moving"
-if __name__ == "__main__":
-    app.run(debug=False, host='0.0.0.0', port=80)
+        if str(action).upper() == 'UP':
+            print(time)
+            e = threading.Event()
+            thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
+            thread.start()
+            return "Desk is going UP"
+
+        if str(action).upper() == 'DOWN':
+            e = threading.Event()
+            thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
+            thread.start()
+            return "Desk is going DOWN"
+            
+        return "Desk is NOT moving"
+    if __name__ == "__main__":
+        app.run(debug=False, host='0.0.0.0', port=80)
+
+except:
+    GPIO.setup(Relays["UP"], GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setup(Relays["DOWN"], GPIO.OUT, initial=GPIO.LOW)
