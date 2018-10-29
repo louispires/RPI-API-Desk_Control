@@ -104,19 +104,35 @@ try:
 
         return "Desk is NOT moving"
 
-    @app.route("/<action>/<height>")
-    def actionTime(action, height):
+    @app.route("/set/<action>")
+    def actionSet(action):
+        values["cur"] = readHeight()
+
+        if str(action).upper() == 'UP':
+            values["up"] = values["cur"]
+            print("SET", action, ":", values[action])
+            return "Desk upper height has been SET"
+
+        if str(action).upper() == 'DOWN' :
+            values["down"] = values["cur"]
+            print("SET", action, ":", values[action])
+            return "Desk lower height has been SET"
+
+        return "Desk height has been SET"
+
+    @app.route("/<action>/<val>")
+    def actionTime(action, val):
         values["cur"] = readHeight()
         
         if str(action).upper() == 'UP':
-            values["new"] = values["cur"] + float(height)
+            values["new"] = values["cur"] + float(val)
             e = threading.Event()
             thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
             thread.start()
             return "Desk is going UP"
 
         if str(action).upper() == 'DOWN':
-            values["new"] = values["cur"] - float(height)
+            values["new"] = values["cur"] - float(val)
             e = threading.Event()
             thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
             thread.start()
