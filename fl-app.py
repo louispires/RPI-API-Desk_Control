@@ -120,6 +120,18 @@ try:
 
         return "Desk height has been SET"
 
+    @app.route("/read/<action>")
+    def actionRead(action):
+        if str(action).upper() == 'UP':
+            print("READ", action, ":", values["up"])
+            return str(values["up"])
+
+        if str(action).upper() == 'DOWN':
+            print("READ", action, ":", values["down"])
+            return str(values["down"])
+
+        return "Desk height has been READ"
+
     @app.route("/<action>/<val>")
     def actionTime(action, val):
         values["cur"] = readHeight()
