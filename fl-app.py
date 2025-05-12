@@ -7,6 +7,7 @@ import RPi.GPIO as GPIO
 import VL53L0X
 import logging
 import atexit
+from flask import jsonify
 
 # --- Configuration ---
 GPIOs = {"UP": 18, "DOWN": 16, "TRIG": 15, "ECHO": 13}
@@ -125,6 +126,12 @@ app = Flask(__name__)
 def index():
     controller.state["cur"] = controller.read_height()
     return render_template('index.html', val=str(controller.state["cur"]))
+
+@app.route("/read/height")
+def get_height_api():
+    height = controller.read_height()
+    controller.state["cur"] = height # Update state if needed
+    return jsonify({"height": height})
 
 @app.route("/stop", methods=["POST"])
 def stop():

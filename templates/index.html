@@ -1,12 +1,344 @@
 <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standing Desk Control</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Optional: Customize Tailwind theme if needed
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Basic body styling */
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent; /* Disable tap highlight on mobile */
+        }
+        /* Style for buttons during active press (mousedown/touchstart) */
+        .active-press {
+            transform: scale(0.95);
+            filter: brightness(0.9);
+        }
+        /* Prevent text selection during button interaction */
+        .no-select {
+          -webkit-touch-callout: none; /* iOS Safari */
+            -webkit-user-select: none; /* Safari */
+             -khtml-user-select: none; /* Konqueror HTML */
+               -moz-user-select: none; /* Old versions of Firefox */
+                -ms-user-select: none; /* Internet Explorer/Edge */
+                    user-select: none; /* Non-prefixed version, currently supported by Chrome, Edge, Opera and Firefox */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
 
-<html>
-    <head>
-        <title>Desk</title>
-    </head>
+    <div class="bg-white rounded-lg shadow-xl p-6 md:p-8 w-full max-w-md">
+        <h1 class="text-2xl font-bold text-center text-gray-800 mb-6">Standing Desk Control</h1>
 
-    <body>
-        Standing Desk Current Height: 
-        <div id="desk">{{ val }}</div>
-    </body>
+        <div class="mb-6 text-center bg-gray-50 p-4 rounded-lg">
+            <p class="text-sm font-medium text-gray-500">Current Height</p>
+            <p id="current-height" class="text-3xl font-semibold text-gray-900">- cm</p>
+            <button id="refresh-height-btn" class="mt-2 text-xs text-indigo-600 hover:text-indigo-800 no-select">Refresh</button>
+        </div>
+
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold text-gray-700 mb-3">Presets</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <button id="preset-up-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg shadow transition duration-150 ease-in-out no-select">Go to UP</button>
+                <button id="preset-down-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg shadow transition duration-150 ease-in-out no-select">Go to DOWN</button>
+                <button id="set-up-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow transition duration-150 ease-in-out no-select text-sm">Set Current as UP</button>
+                <button id="set-down-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow transition duration-150 ease-in-out no-select text-sm">Set Current as DOWN</button>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold text-gray-700 mb-3">Manual Adjust (Hold)</h2>
+            <div class="flex items-center justify-center gap-4">
+                 <button id="micro-up-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-4 px-6 rounded-full shadow-lg transition duration-150 ease-in-out no-select flex items-center justify-center w-20 h-20">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
+                    </svg>
+                </button>
+                 <button id="stop-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-6 rounded-full shadow-lg transition duration-150 ease-in-out no-select flex items-center justify-center w-24 h-24 text-xl">
+                    STOP
+                </button>
+                 <button id="micro-down-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-4 px-6 rounded-full shadow-lg transition duration-150 ease-in-out no-select flex items-center justify-center w-20 h-20">
+                     <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                       <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                     </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold text-gray-700 mb-3">Adjust by Amount (cm)</h2>
+            <div class="flex items-center gap-2">
+                <input type="number" id="delta-value" step="0.1" placeholder="e.g., 2.5" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                <button id="delta-up-btn" class="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-3 rounded-lg shadow transition duration-150 ease-in-out no-select">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                    </svg>
+                </button>
+                <button id="delta-down-btn" class="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-3 rounded-lg shadow transition duration-150 ease-in-out no-select">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div id="status-message" class="mt-6 text-center text-sm text-gray-600 min-h-[1.25rem]">
+            </div>
+
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const currentHeightDisplay = document.getElementById('current-height');
+        const statusMessageDisplay = document.getElementById('status-message');
+        const deltaValueInput = document.getElementById('delta-value');
+        // *** IMPORTANT: ID to find the height value in the HTML returned by GET / ***
+        // *** Make sure this ID exists in your Flask template (index.html) ***
+        const HEIGHT_ELEMENT_ID_IN_FLASK_TEMPLATE = 'height-from-server';
+
+        // --- Buttons ---
+        const refreshHeightBtn = document.getElementById('refresh-height-btn');
+        const presetUpBtn = document.getElementById('preset-up-btn');
+        const presetDownBtn = document.getElementById('preset-down-btn');
+        const setUpBtn = document.getElementById('set-up-btn');
+        const setDownBtn = document.getElementById('set-down-btn');
+        const microUpBtn = document.getElementById('micro-up-btn');
+        const microDownBtn = document.getElementById('micro-down-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const deltaUpBtn = document.getElementById('delta-up-btn');
+        const deltaDownBtn = document.getElementById('delta-down-btn');
+
+        // --- State ---
+        let isMicroMoving = false; // Flag to track micro-movement state
+        let statusTimeout; // Timeout ID for clearing status messages
+
+        // --- Utility Functions ---
+
+        /**
+         * Gets the base URL. Since the page is served from the Pi,
+         * we use relative paths (empty base URL).
+         * @returns {string} An empty string.
+         */
+        function getBaseUrl() {
+            return "";
+        }
+
+        /**
+         * Displays a status message.
+         * @param {string} message - The message to display.
+         * @param {boolean} [isError=false] - If true, styles the message as an error.
+         * @param {number} [duration=4000] - How long to display the message (ms). 0 for permanent.
+         */
+        function setStatusMessage(message, isError = false, duration = 4000) {
+            clearTimeout(statusTimeout);
+            statusMessageDisplay.textContent = message;
+            statusMessageDisplay.className = `mt-6 text-center text-sm min-h-[1.25rem] ${isError ? 'text-red-600 font-semibold' : 'text-gray-600'}`;
+            if (duration > 0) {
+                statusTimeout = setTimeout(() => {
+                    statusMessageDisplay.textContent = '';
+                    statusMessageDisplay.className = 'mt-6 text-center text-sm text-gray-600 min-h-[1.25rem]';
+                }, duration);
+            }
+        }
+
+        /**
+         * Sends a request to the API using a relative path.
+         * @param {string} endpoint - The API endpoint (e.g., '/UP').
+         * @param {string} [method='POST'] - The HTTP method.
+         * @param {object|null} [body=null] - The request body for POST requests.
+         * @returns {Promise<Response>} A promise resolving with the fetch Response object.
+         */
+        async function sendRequest(endpoint, method = 'POST', body = null) {
+            const baseUrl = getBaseUrl();
+            const url = `${baseUrl}${endpoint}`;
+            const options = { method: method, headers: {} };
+            if (body && method !== 'GET') {
+                options.body = JSON.stringify(body);
+                options.headers['Content-Type'] = 'application/json';
+            }
+            console.log(`Sending ${method} request to ${url}`);
+            try {
+                const response = await fetch(url, options);
+                console.log(`Response status: ${response.status}`);
+                if (!response.ok) {
+                    let errorText = `HTTP error ${response.status}`;
+                    try { const errorData = await response.text(); errorText += `: ${errorData}`; } catch (e) {}
+                    throw new Error(errorText);
+                }
+                return response;
+            } catch (error) {
+                console.error(`Fetch error for ${method} ${url}:`, error);
+                setStatusMessage(`Error communicating with desk API. Check console.`, true);
+                throw error;
+            }
+        }
+
+        /**
+         * Fetches and updates the current height display.
+         * **MODIFIED:** Parses HTML response from GET / to find the height value.
+         */
+        async function fetchCurrentHeight() {
+            setStatusMessage('Fetching height...', false, 1000);
+            try {
+                // Fetch JSON data from the dedicated API endpoint
+                const response = await sendRequest('/read/height', 'GET'); // Use GET for fetching data
+                const data = await response.json(); // Parse the JSON response
+        
+                if (data && typeof data.height === 'number') {
+                    currentHeightDisplay.textContent = `${data.height.toFixed(1)} cm`;
+                    setStatusMessage('Height updated.', false, 2000);
+                } else {
+                    currentHeightDisplay.textContent = '- cm';
+                    console.warn('Received invalid data format from /api/height:', data);
+                    setStatusMessage('Height data format unclear.', true, 5000);
+                }
+            } catch (error) {
+                currentHeightDisplay.textContent = '- cm';
+                // Error message set by sendRequest
+                console.error("Error fetching height from API:", error);
+            }
+        }
+
+        /**
+         * Handles simple POST commands like presets or set operations.
+         * @param {string} endpoint - The API endpoint.
+         * @param {string} successMessage - Message to show on success.
+         */
+        async function handleSimpleCommand(endpoint, successMessage) {
+             setStatusMessage(`Sending command: ${endpoint}...`, false, 1500);
+             try {
+                 const response = await sendRequest(endpoint, 'POST');
+                 const responseText = await response.text();
+                 setStatusMessage(responseText || successMessage, false);
+                 // Refresh height after a short delay, hoping the action completed
+                 setTimeout(fetchCurrentHeight, 1500);
+             } catch (error) {
+                 // Error message handled by sendRequest
+             }
+        }
+
+        /**
+         * Handles delta adjustment commands.
+         * @param {string} direction - 'UP' or 'DOWN'.
+         */
+        async function handleDeltaCommand(direction) {
+            const delta = parseFloat(deltaValueInput.value);
+            if (isNaN(delta) || delta <= 0) {
+                setStatusMessage('Error: Please enter a valid positive number.', true);
+                return;
+            }
+            const deltaString = delta.toFixed(1);
+            const endpoint = `/${direction}/${deltaString}`;
+            setStatusMessage(`Adjusting ${direction} by ${deltaString} cm...`, false, 1500);
+             try {
+                 const response = await sendRequest(endpoint, 'POST');
+                 const responseText = await response.text();
+                 setStatusMessage(responseText || `Adjusting ${direction} by ${deltaString} cm initiated.`, false);
+                 // Refresh height after a longer delay for delta moves
+                 setTimeout(fetchCurrentHeight, 3500);
+             } catch (error) {
+                 // Error handled by sendRequest
+             }
+        }
+
+        // --- Event Listeners ---
+        refreshHeightBtn.addEventListener('click', fetchCurrentHeight);
+        presetUpBtn.addEventListener('click', () => handleSimpleCommand('/UP', 'Moving to UP preset.'));
+        presetDownBtn.addEventListener('click', () => handleSimpleCommand('/DOWN', 'Moving to DOWN preset.'));
+        setUpBtn.addEventListener('click', () => handleSimpleCommand('/set/UP', 'Current height set as UP preset.'));
+        setDownBtn.addEventListener('click', () => handleSimpleCommand('/set/DOWN', 'Current height set as DOWN preset.'));
+
+        stopBtn.addEventListener('click', async () => {
+            if (isMicroMoving) { // If micro-move was active, ensure it's stopped properly
+                 await handleMicroStop(); // Call the specific stop logic for micro-moves
+            } else { // Otherwise, send a general stop command
+                setStatusMessage('Stopping...', false, 1000);
+                try {
+                    const response = await sendRequest('/stop', 'POST');
+                    const responseText = await response.text();
+                    setStatusMessage(responseText || 'Stop command sent.', false);
+                    setTimeout(fetchCurrentHeight, 500);
+                } catch (error) {
+                    // Error handled by sendRequest
+                }
+            }
+        });
+
+        deltaUpBtn.addEventListener('click', () => handleDeltaCommand('UP'));
+        deltaDownBtn.addEventListener('click', () => handleDeltaCommand('DOWN'));
+
+        // Micro Adjustment Controls (Hold to move, release to stop)
+        const handleMicroStart = async (direction) => {
+            if (isMicroMoving) return;
+            isMicroMoving = true;
+            setStatusMessage(`Micro-moving ${direction}...`, false, 0);
+            try {
+                // Send command but don't wait for response text here
+                await sendRequest(`/${direction}/micro`, 'POST');
+            } catch (error) {
+                isMicroMoving = false; // Reset flag on error
+            }
+        };
+
+        const handleMicroStop = async () => {
+            // This function is now called on mouseup/touchend/mouseleave for micro buttons AND potentially by the main stop button
+            if (!isMicroMoving) return; // Only run if micro-move was actually active
+            isMicroMoving = false; // Set flag immediately
+            setStatusMessage('Stopping micro-move...', false, 1000);
+            try {
+                const response = await sendRequest('/stop', 'POST');
+                const responseText = await response.text();
+                setStatusMessage(responseText || 'Micro-move stopped.', false);
+                setTimeout(fetchCurrentHeight, 500);
+            } catch (error) {
+                // Error handled by sendRequest
+            }
+        };
+
+        // Add press effect and event listeners for buttons
+        [microUpBtn, microDownBtn, stopBtn, presetUpBtn, presetDownBtn, setUpBtn, setDownBtn, deltaUpBtn, deltaDownBtn, refreshHeightBtn].forEach(btn => {
+            btn.addEventListener('mousedown', () => btn.classList.add('active-press'));
+            btn.addEventListener('mouseup', () => btn.classList.remove('active-press'));
+            btn.addEventListener('mouseleave', () => btn.classList.remove('active-press'));
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); btn.classList.add('active-press'); }, { passive: false });
+            btn.addEventListener('touchend', () => btn.classList.remove('active-press'));
+        });
+
+        // Micro Up: Mouse and Touch
+        microUpBtn.addEventListener('mousedown', () => handleMicroStart('UP'));
+        microUpBtn.addEventListener('mouseup', handleMicroStop);
+        microUpBtn.addEventListener('mouseleave', handleMicroStop); // Stop if mouse leaves while pressed
+        microUpBtn.addEventListener('touchstart', (e) => { e.preventDefault(); handleMicroStart('UP'); }, { passive: false });
+        microUpBtn.addEventListener('touchend', handleMicroStop);
+
+        // Micro Down: Mouse and Touch
+        microDownBtn.addEventListener('mousedown', () => handleMicroStart('DOWN'));
+        microDownBtn.addEventListener('mouseup', handleMicroStop);
+        microDownBtn.addEventListener('mouseleave', handleMicroStop); // Stop if mouse leaves while pressed
+        microDownBtn.addEventListener('touchstart', (e) => { e.preventDefault(); handleMicroStart('DOWN'); }, { passive: false });
+        microDownBtn.addEventListener('touchend', handleMicroStop);
+
+        // --- Initial Load ---
+        window.addEventListener('load', () => {
+            fetchCurrentHeight();
+        });
+
+    </script>
+
+</body>
 </html>
