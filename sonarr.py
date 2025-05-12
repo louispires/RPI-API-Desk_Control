@@ -22,8 +22,6 @@ try:
     sleep(2)
 
     while True:
-
-
         print("Calculating distance")
 
         GPIO.output(GPIOs["TRIG"], GPIO.HIGH)

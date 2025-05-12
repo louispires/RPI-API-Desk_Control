@@ -1,164 +1,183 @@
-#!/usr/bin/python3
-
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 from time import sleep
 import time
 import threading
-import json
 import statistics
 import RPi.GPIO as GPIO
+import VL53L0X
+import logging
+import atexit
 
-values = {"cur": 63.00, "new": 63.00, "up": 97.00, "down": 63.00, "busy": False}
-
+# --- Configuration ---
 GPIOs = {"UP": 18, "DOWN": 16, "TRIG": 15, "ECHO": 13}
-GPIO.setwarnings(False)    # Ignore warning for now
-GPIO.setmode(GPIO.BOARD)   # Use physical pin numbering
-GPIO.setup(GPIOs["UP"], GPIO.OUT, initial=GPIO.LOW)
-GPIO.setup(GPIOs["DOWN"], GPIO.OUT, initial=GPIO.LOW)
-GPIO.setup(GPIOs["TRIG"], GPIO.OUT, initial=GPIO.LOW)
-GPIO.setup(GPIOs["ECHO"], GPIO.IN)
+TOF_ADDRESS = 0x29
 
+# --- Logging ---
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# --- GPIO Setup ---
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BOARD)
+for pin_name, pin in GPIOs.items():
+    if pin_name != "ECHO":
+        GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
+    else:
+        GPIO.setup(pin, GPIO.IN)
+
+# --- TOF Sensor Setup ---
+tof = VL53L0X.VL53L0X(i2c_bus=1, i2c_address=TOF_ADDRESS)
+global_timing = 20000
+
+# --- Desk Controller Class ---
+class DeskController:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.state = {"cur": 71.0, "up": 105.0, "down": 71.0, "busy": False}
+        self.exit_flag = False
+        self._init_tof()
+
+    def _init_tof(self):
+        tof.open()
+        tof.start_ranging(VL53L0X.Vl53l0xAccuracyMode.HIGH_SPEED)
+        timing = tof.get_timing()
+        global global_timing
+        global_timing = max(timing, 20000)
+
+    def _shutdown_tof(self):
+        tof.stop_ranging()
+        tof.close()
+
+    def read_height(self):
+        distances = []
+        for _ in range(10):
+            distance = tof.get_distance() / 10  # mm to cm
+            if distance < 200:
+                distances.append(distance)
+            time.sleep(global_timing / 1000000.0)
+        return round(statistics.mean(distances), 1) if distances else 0
+
+    def trigger_relay(self, direction):
+        with self.lock:
+            if self.state["busy"]:
+                return "Desk is already busy moving!"
+            self.state["busy"] = True
+            self.exit_flag = False
+
+        try:
+            target = self.state["up"] if direction == "UP" else self.state["down"]
+            GPIO.output(GPIOs[direction], GPIO.HIGH)
+
+            while not self.exit_flag:
+                self.state["cur"] = self.read_height()
+                if (direction == "UP" and self.state["cur"] >= target) or \
+                   (direction == "DOWN" and self.state["cur"] <= target):
+                    break
+                sleep(0.5)
+        finally:
+            GPIO.output(GPIOs[direction], GPIO.LOW)
+            self.state["busy"] = False
+
+        return "Desk stopped after moving {}".format(direction)
+
+    def trigger_micro(self, direction):
+        with self.lock:
+            if self.state["busy"]:
+                return "Desk is already busy moving!"
+            self.state["busy"] = True
+            self.exit_flag = False
+
+        GPIO.output(GPIOs[direction], GPIO.HIGH)
+        try:
+            while not self.exit_flag:
+                sleep(0.1)
+        finally:
+            GPIO.output(GPIOs[direction], GPIO.LOW)
+            with self.lock:
+                self.state["busy"] = False
+
+        return "Desk micro-hold stopped {}".format(direction)
+
+    def stop(self):
+        self.exit_flag = True
+        GPIO.output(GPIOs["UP"], GPIO.LOW)
+        GPIO.output(GPIOs["DOWN"], GPIO.LOW)
+        return "Desk has been stopped!"
+
+    def set_position(self, position):
+        self.state[position] = self.read_height()
+        return "Desk {} position set to {}".format(position, self.state[position])
+
+    def read_position(self, position):
+        return str(self.state[position])
+
+    def adjust_height(self, direction, delta):
+        self.state["cur"] = self.read_height()
+        self.state["up"] = self.state["cur"] + delta if direction == "UP" else self.state["up"]
+        self.state["down"] = self.state["cur"] - delta if direction == "DOWN" else self.state["down"]
+        return self.trigger_relay(direction)
+
+controller = DeskController()
 app = Flask(__name__)
 
-try:
-    def triggerRelay(e, thread):
-        if not values["busy"]:
-            values["busy"] = True
-            tn = threading.currentThread().getName()
+# --- Routes ---
+@app.route("/")
+def index():
+    controller.state["cur"] = controller.read_height()
+    return render_template('index.html', val=str(controller.state["cur"]))
 
-            print(readHeight())
+@app.route("/stop", methods=["POST"])
+def stop():
+    return controller.stop()
 
-            print("cur", values["cur"])
+@app.route("/<direction>", methods=["POST"])
+def move(direction):
+    direction = direction.upper()
+    if direction in ("UP", "DOWN"):
+        thread = threading.Thread(target=controller.trigger_relay, args=(direction,))
+        thread.start()
+        return "Desk is going {}".format(direction)
+    return "Invalid direction"
 
-            if tn == 'UP':
-                while values["cur"] <= values["new"]:
-                    print("cur", values["cur"])
-                    print("new", values["new"])
-                    GPIO.output(GPIOs[tn], GPIO.HIGH)
-                    values["cur"] = readHeight()
-                    sleep(0.075)
+@app.route("/<direction>/micro", methods=["POST"])
+def micro_move(direction):
+    direction = direction.upper()
+    if direction in ("UP", "DOWN"):
+        thread = threading.Thread(target=controller.trigger_micro, args=(direction,))
+        thread.start()
+        return "Desk is holding micro-move {}".format(direction)
+    return "Invalid direction"
 
-            if tn == 'DOWN':
-                while values["cur"] >= values["new"]:
-                    print("cur", values["cur"])
-                    print("new", values["new"])
-                    GPIO.output(GPIOs[tn], GPIO.HIGH)
-                    values["cur"] = readHeight()
-                    sleep(0.075)
+@app.route("/set/<position>", methods=["POST"])
+def set_position(position):
+    position = position.upper()
+    if position in ("UP", "DOWN"):
+        return controller.set_position(position.lower())
+    return "Invalid position"
 
-            GPIO.output(GPIOs[tn], GPIO.LOW)
-            print('Relay OFF \n')
-            values["busy"] = False
-        else:
-            print('Desk is already busy moving!')
+@app.route("/read/<position>", methods=["GET"])
+def read_position(position):
+    position = position.upper()
+    if position in ("UP", "DOWN"):
+        return controller.read_position(position.lower())
+    return "Invalid position"
 
-    def readHeight():
-        return readHeightActual(10)
+@app.route("/<direction>/<float:delta>", methods=["POST"])
+def adjust_height(direction, delta):
+    direction = direction.upper()
+    if direction in ("UP", "DOWN"):
+        thread = threading.Thread(target=controller.adjust_height, args=(direction, delta))
+        thread.start()
+        return "Desk is adjusting height {} by {} cm".format(direction, delta)
+    return "Invalid direction"
 
-    def readHeightActual(times):
-        distance = list()
-        for t in range(times):
-            pulse_start_time = time.time()
-            pulse_end_time = time.time()
-            GPIO.output(GPIOs["TRIG"], GPIO.HIGH)
-
-            sleep(0.00001)
-
-            GPIO.output(GPIOs["TRIG"], GPIO.LOW)
-
-            while GPIO.input(GPIOs["ECHO"])==0:
-                pulse_start_time = time.time()
-            while GPIO.input(GPIOs["ECHO"])==1:
-                pulse_end_time = time.time()
-
-            pulse_duration = pulse_end_time - pulse_start_time
-            
-            distance.append(round(pulse_duration * 17150, 1))
-
-        print("Distance:", distance, "cm")
-        print("Distance:", statistics.median(distance), "cm")
-
-        return round(statistics.median(distance), 1)
-
-
-    @app.route('/')
-    def index():
-        values["cur"] = readHeight()
-        return render_template('index.html', val=str(round(values["cur"], 1)))
-
-    @app.route("/<action>")
-    def action(action):
-        if str(action).upper() == 'UP':
-            values["new"] = values["up"]
-            e = threading.Event()
-            thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
-            thread.start()
-            return "Desk is going UP"
-
-        if str(action).upper() == 'DOWN' :
-            values["new"] = values["down"]
-            e = threading.Event()
-            thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
-            thread.start()
-            return "Desk is going DOWN"
-
-        return "Desk is NOT moving"
-
-    @app.route("/set/<action>")
-    def actionSet(action):
-        values["cur"] = readHeight()
-
-        if str(action).upper() == 'UP':
-            values["up"] = values["cur"]
-            print("SET", action, ":", values[action])
-            return "Desk upper height has been SET"
-
-        if str(action).upper() == 'DOWN' :
-            values["down"] = values["cur"]
-            print("SET", action, ":", values[action])
-            return "Desk lower height has been SET"
-
-        return "Desk height has been SET"
-
-    @app.route("/read/<action>")
-    def actionRead(action):
-        if str(action).upper() == 'UP':
-            print("READ", action, ":", values["up"])
-            return str(values["up"])
-
-        if str(action).upper() == 'DOWN':
-            print("READ", action, ":", values["down"])
-            return str(values["down"])
-
-        return "Desk height has been READ"
-
-    @app.route("/<action>/<val>")
-    def actionTime(action, val):
-        values["cur"] = readHeight()
-        
-        if str(action).upper() == 'UP':
-            values["new"] = values["cur"] + float(val)
-            e = threading.Event()
-            thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
-            thread.start()
-            return "Desk is going UP"
-
-        if str(action).upper() == 'DOWN':
-            values["new"] = values["cur"] - float(val)
-            e = threading.Event()
-            thread = threading.Thread(name=str(action).upper(), target=triggerRelay, args=(e, 2))
-            thread.start()
-            return "Desk is going DOWN"
-            
-        return "Desk is NOT moving"
-    
-    values["cur"] = readHeight()
-    print("cur", values["cur"])
-
-    if __name__ == "__main__":
-        app.run(debug=False, host='0.0.0.0', port=80)
-
-finally:
-    GPIO.setup(GPIOs["UP"], GPIO.OUT, initial=GPIO.LOW)
-    GPIO.setup(GPIOs["DOWN"], GPIO.OUT, initial=GPIO.LOW)
+# --- Cleanup ---
+@atexit.register
+def cleanup():
+    controller._shutdown_tof()
     GPIO.cleanup()
+
+# --- Main ---
+if __name__ == "__main__":
+    controller.state["cur"] = controller.read_height()
+    app.run(debug=False, host='0.0.0.0', port=80)
