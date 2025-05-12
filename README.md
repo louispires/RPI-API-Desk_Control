@@ -1,4 +1,9 @@
 # RPI-API-Desk_Control
+
+# UI:
+![image](https://github.com/user-attachments/assets/e02cd628-4ae3-4b33-aa4d-e34a26dacfbe)
+
+
 # Desk Control API - Usage Guide
 
 This guide describes how to interact with the Raspberry Pi Desk Control API using HTTP requests.
